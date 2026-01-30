@@ -43,6 +43,22 @@ int main()
 
         frameLabHSV = frameHSV | frameLAB;
 
+        std::vector<std::vector<cv::Point>> contour;
+        cv::findContours(frameLabHSV, contour, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+        double maxArea = 0;
+        int maxIndex = -1;
+
+        for (int n = 0; n < contour.size(); n++)
+        {
+            double area = cv::contourArea(contour[n]);
+            if (area > maxArea)
+            {
+                maxArea = area;
+                maxIndex = n;
+            }
+        }
+
         imshow("OriginalVideo", frame); // отображаем кадр в окне с именем OriginalVideo
         imshow("HSVVideo", frameHSV); // отображаем кадр в окне с именем HSVVideo
         imshow("LABVideo", frameLAB); // отображаем кадр в окне с именем LabVideo
