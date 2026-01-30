@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="TestCamera/TestCamera.vcxproj" Id="e1b454b1-4f7b-43d9-8194-524fcf2cdc68" />
+</Solution>
