@@ -71,13 +71,11 @@ int main()
 SOCKET senderSocket = INVALID_SOCKET;  // сокет для отправки
 sockaddr_in receiverAddr{};            // структура с IP и портом получателя
 
-#pragma pack(push,1)
 struct Packet
 {
     uint16_t x;  // координата X
     uint16_t y;  // координата Y
 };
-#pragma pack(pop)
 
 bool initUDP() // инициализация UDP-соединения
 {
@@ -137,7 +135,6 @@ void sendData(const void* data, size_t size)
         sizeof(receiverAddr)                       // размер структуры адреса
     );
 }
-
 
 struct MinMax
 {
