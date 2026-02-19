@@ -71,7 +71,7 @@ int main()
 SOCKET senderSocket = INVALID_SOCKET;  // сокет для отправки
 sockaddr_in receiverAddr{};            // структура с IP и портом получателя
 
-struct MinMax
+struct MinMax // структура для переменных
 {
     int min;
     int max;
@@ -90,10 +90,10 @@ struct Packet
 
 void initObjectControls() // функция для создания трекбаров
 {
-    cv::namedWindow("Controls_Object", cv::WINDOW_NORMAL);
-    cv::resizeWindow("Controls_Object", 350, 260);
+    cv::namedWindow("Controls_Object", cv::WINDOW_NORMAL); // создаем окно
+    cv::resizeWindow("Controls_Object", 350, 260); // устанавливаем размер окна
 
-    cv::createTrackbar("H min", "Controls_Object", &H.min, 179);
+    cv::createTrackbar("H min", "Controls_Object", &H.min, 179); // создаем трекбары
     cv::createTrackbar("H max", "Controls_Object", &H.max, 179);
     cv::createTrackbar("S min", "Controls_Object", &Smin, 255);
     cv::createTrackbar("V min", "Controls_Object", &Vmin, 255);
@@ -218,30 +218,30 @@ int main()
             }
         }
 
-        if (maxIndex != -1 && maxArea > 200)
+        if (maxIndex != -1 && maxArea > 200) // если объект обнаружен и больше 200, то ищем его центр
         {
-            cv::Point2f objectCenter;
-            Packet pack;
-            float objectRadius = 0;
-            cv::minEnclosingCircle(contour[maxIndex], objectCenter, objectRadius);
-            cv::circle(frameBGR, objectCenter, (int)objectRadius, cv::Scalar(255, 0, 0), 2);
-            cv::circle(frameBGR, objectCenter, 3, cv::Scalar(0, 255, 0), -1);
-            cv::putText(frameBGR, 
+            cv::Point2f objectCenter; // создаем переменную для записи координат
+            Packet pack; // создаем пакет для формирования данных для отправки
+            float objectRadius = 0; // создаем переменную для радиуса круга
+            cv::minEnclosingCircle(contour[maxIndex], objectCenter, objectRadius); // рассчитываем минимальную описанную окружность для найденного контура объекта
+            cv::circle(frameBGR, objectCenter, (int)objectRadius, cv::Scalar(255, 0, 0), 2); // рисуем саму окружность на изначальном изображении
+            cv::circle(frameBGR, objectCenter, 3, cv::Scalar(0, 255, 0), -1); // рисуем центральную точку на изначальном изображении
+            cv::putText(frameBGR, // добавляем надпись. что это робот
                 "Robot", 
                 objectCenter + cv::Point2f(-objectRadius, objectRadius),
                 cv::FONT_HERSHEY_COMPLEX,
                 0.6,
                 cv::Scalar(0, 0, 255));
-            int xi = (int)std::lround(objectCenter.x);
-            int yi = (int)std::lround(objectCenter.y);
+            int xi = (int)std::lround(objectCenter.x); // округляем и записываем координату центра по Х 
+            int yi = (int)std::lround(objectCenter.y); // округляем и записываем координату центра по У 
 
-            xi = std::clamp(xi, 0, 65535);
+            xi = std::clamp(xi, 0, 65535); // ограничиваем диапазон числа, чтобы он не мог быть больше 2-х байтов
             yi = std::clamp(yi, 0, 65535);
 
-            pack.x = htons((uint16_t)xi);
-            pack.y = htons((uint16_t)yi);
+            pack.x = htons((uint16_t)xi); // упаковываем число. преобразовав его в 2 байта
+            pack.y = htons((uint16_t)yi); // упаковываем число. преобразовав его в 2 байта
 
-            sendData(&pack, sizeof(pack));
+            sendData(&pack, sizeof(pack)); // отправляем число по UDP при помощи созданной функции
         }
         
         imshow("OriginalVideo", frameBGR); // отображаем кадр в окне с именем OriginalVideo
