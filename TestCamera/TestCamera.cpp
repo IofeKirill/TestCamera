@@ -71,11 +71,38 @@ int main()
 SOCKET senderSocket = INVALID_SOCKET;  // сокет для отправки
 sockaddr_in receiverAddr{};            // структура с IP и портом получателя
 
+struct MinMax
+{
+    int min;
+    int max;
+};
+
+int Smin = 148, Vmin = 103;
+MinMax H = { 96, 117 };
+MinMax A = { 110, 120 };
+MinMax B = { 95, 120 };
+
 struct Packet
 {
     uint16_t x;  // координата X
     uint16_t y;  // координата Y
 };
+
+void initObjectControls() // функция для создания трекбаров
+{
+    cv::namedWindow("Controls_Object", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Controls_Object", 350, 260);
+
+    cv::createTrackbar("H min", "Controls_Object", &H.min, 179);
+    cv::createTrackbar("H max", "Controls_Object", &H.max, 179);
+    cv::createTrackbar("S min", "Controls_Object", &Smin, 255);
+    cv::createTrackbar("V min", "Controls_Object", &Vmin, 255);
+
+    cv::createTrackbar("A min", "Controls_Object", &A.min, 255);
+    cv::createTrackbar("A max", "Controls_Object", &A.max, 255);
+    cv::createTrackbar("B min", "Controls_Object", &B.min, 255);
+    cv::createTrackbar("B max", "Controls_Object", &B.max, 255);
+}
 
 bool initUDP() // инициализация UDP-соединения
 {
@@ -136,22 +163,15 @@ void sendData(const void* data, size_t size)
     );
 }
 
-struct MinMax
-{
-    int min;
-    int max;
-};
+
 
 int main()
 {
     cv::Mat frameBGR, frameHSV, frameLAB, frameLabHSV; // объект класса Mat для хранения текущего кадра изображения
     cv::VideoCapture video(0, cv::CAP_DSHOW); // создаем объект класса VideoCapture: 0 — индекс камеры, CAP_DSHOW — backend DirectShow
-    int Smin = 148, Vmin = 103;
-    MinMax H = { 96, 117 };
-    MinMax A = { 110, 120 };
-    MinMax B = { 95, 120 };
     if (!video.isOpened()) return -1; // если камера не открылась — завершаем программу с кодом ошибки -1
     if (!initUDP()) return -2; // инициализируем UDP
+    initObjectControls();
 
     while (true) // бесконечно
     {
