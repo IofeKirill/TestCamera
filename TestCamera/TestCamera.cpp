@@ -25,6 +25,19 @@ struct Packet
     uint16_t y;  // координата Y
 };
 
+// КАЛИБРОВКА ПОЛЯ
+std::vector<cv::Point2f> fieldCorners;
+const int FIELD_W = 800;
+const int FIELD_H = 400;
+bool calibrated = false;
+
+void onMouse(int event, int x, int y, int flags, void*)
+{
+    if (event == cv::EVENT_LBUTTONDOWN && fieldCorners.size() < 4) 
+        fieldCorners.emplace_back((float)x, (float)y);
+}
+
+
 void initObjectControls() // функция для создания трекбаров
 {
     cv::namedWindow("Controls_Object", cv::WINDOW_NORMAL); // создаем окно
@@ -100,22 +113,47 @@ void sendData(const void* data, size_t size)
     );
 }
 
-
-
 int main()
 {
-    cv::Mat frameBGR, frameHSV, frameLAB, frameLabHSV; // объект класса Mat для хранения текущего кадра изображения
+    cv::Mat frameBGR, frameHSV, frameLAB, frameLabHSV, homography, frameTop; // объект класса Mat для хранения текущего кадра изображения
     cv::VideoCapture video(0, cv::CAP_DSHOW); // создаем объект класса VideoCapture: 0 — индекс камеры, CAP_DSHOW — backend DirectShow
     if (!video.isOpened()) return -1; // если камера не открылась — завершаем программу с кодом ошибки -1
+
+    cv::namedWindow("View", cv::WINDOW_NORMAL);
+    cv::setMouseCallback("View", onMouse);
+
     if (!initUDP()) return -2; // инициализируем UDP
     initObjectControls();
-
     while (true) // бесконечно
     {
         video >> frameBGR; // получаем кадр из видеопотока
         if (frameBGR.empty()) break; // если кадр пустой — выходим из цикла
 
-        cv::cvtColor(frameBGR, frameHSV, cv::COLOR_BGR2HSV); // преобразуем полученный кадр в HSV
+        if (!calibrated)
+        {
+            for (int n = 0; n < fieldCorners.size(); n++)
+                cv::circle(frameBGR, fieldCorners[n], 6, cv::Scalar(0, 0, 255), -1);
+            int key = cv::waitKey(1);
+            cv::imshow("View", frameBGR);
+            if (key == 13 && fieldCorners.size() == 4)
+            {
+                std::vector<cv::Point2f> dst = {
+                    {0, 0},
+                    {(float)FIELD_W, 0},
+                    {(float)FIELD_W, (float)FIELD_H},
+                    {0, (float)FIELD_H}
+                };
+                homography = cv::getPerspectiveTransform(fieldCorners, dst);
+                calibrated = true;
+                cv::destroyWindow("View");
+            }
+
+            if (cv::waitKey(1) == 27) break;
+            continue;
+        }
+        cv::warpPerspective(frameBGR, frameTop, homography, cv::Size(FIELD_W, FIELD_H));
+
+        cv::cvtColor(frameTop, frameHSV, cv::COLOR_BGR2HSV); // преобразуем полученный кадр в HSV
         cv::GaussianBlur(frameHSV,
             frameHSV,
             cv::Size(15, 15),
@@ -125,15 +163,15 @@ int main()
             cv::Scalar(H.max, 255, 255),
             frameHSV); // ищем только вхождения нужного цвета (преобразуем в бинарную маску) и переписываем в ту же переменную
 
-        cv::cvtColor(frameBGR, frameLAB, cv::COLOR_BGR2Lab);// преобразуем полученный кадр в Lab
+        cv::cvtColor(frameTop, frameLAB, cv::COLOR_BGR2Lab);// преобразуем полученный кадр в Lab
         std::vector<cv::Mat> vectorFrameLab; // создаем массив типа Mat (вектор - динамический массив). Нужны библиотеки vector и iostream
         cv::Mat maskA, maskB; // создаем маски для осей А и В
         cv::split(frameLAB, vectorFrameLab); // разделяем кадр в Lab на потоки
         cv::inRange(vectorFrameLab[1], A.min, A.max, maskA); // проверяем вхождения в поток А
         cv::inRange(vectorFrameLab[2], B.min, B.max, maskB); // проверяем вхождения в поток И
-        frameLAB = maskA & maskB; // объединяем результат в единую маску и записываем его
+        frameLAB = maskA | maskB; // объединяем результат в единую маску и записываем его
 
-        frameLabHSV = frameHSV | frameLAB; // объединяем маски HSV и Lab в единый кадр
+        frameLabHSV = frameHSV & frameLAB; // объединяем маски HSV и Lab в единый кадр
 
         std::vector<std::vector<cv::Point>> contour; // создаем вектор векторов координат для контуров объекта. Вектор векторов - это двухмерный массив.
         cv::findContours( //Ищем контуры объекта
@@ -161,9 +199,9 @@ int main()
             Packet pack; // создаем пакет для формирования данных для отправки
             float objectRadius = 0; // создаем переменную для радиуса круга
             cv::minEnclosingCircle(contour[maxIndex], objectCenter, objectRadius); // рассчитываем минимальную описанную окружность для найденного контура объекта
-            cv::circle(frameBGR, objectCenter, (int)objectRadius, cv::Scalar(255, 0, 0), 2); // рисуем саму окружность на изначальном изображении
-            cv::circle(frameBGR, objectCenter, 3, cv::Scalar(0, 255, 0), -1); // рисуем центральную точку на изначальном изображении
-            cv::putText(frameBGR, // добавляем надпись. что это робот
+            cv::circle(frameTop, objectCenter, (int)objectRadius, cv::Scalar(255, 0, 0), 2); // рисуем саму окружность на изначальном изображении
+            cv::circle(frameTop, objectCenter, 3, cv::Scalar(0, 255, 0), -1); // рисуем центральную точку на изначальном изображении
+            cv::putText(frameTop, // добавляем надпись. что это робот
                 "Robot",
                 objectCenter + cv::Point2f(-objectRadius, objectRadius),
                 cv::FONT_HERSHEY_COMPLEX,
@@ -181,7 +219,7 @@ int main()
             sendData(&pack, sizeof(pack)); // отправляем число по UDP при помощи созданной функции
         }
 
-        imshow("OriginalVideo", frameBGR); // отображаем кадр в окне с именем OriginalVideo
+        imshow("OriginalVideo", frameTop); // отображаем кадр в окне с именем OriginalVideo
         imshow("HSVVideo", frameHSV); // отображаем кадр в окне с именем HSVVideo
         imshow("LABVideo", frameLAB); // отображаем кадр в окне с именем LabVideo
         imshow("LabHSVVideo", frameLabHSV); // отображаем кадр в окне с именем LabHSVVideo
