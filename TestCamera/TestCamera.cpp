@@ -113,6 +113,35 @@ void sendData(const void* data, size_t size)
     );
 }
 
+static inline void toBGR(const cv::Mat& gray, cv::Mat& bgr)
+{
+    if (gray.channels() == 1) cv::cvtColor(gray, bgr, cv::COLOR_GRAY2BGR);
+    else bgr = gray.clone();
+}
+
+static inline cv::Mat makeGrid(const cv::Mat& upL, const cv::Mat& downL, const cv::Mat& upR, const cv::Mat& downR)
+{
+    int cellW = FIELD_W / 2;
+    int cellH = FIELD_H / 2;
+
+    cv::Mat upRow, downRow, grid;
+    cv::hconcat(upL, upR, upRow);
+    cv::hconcat(downL, downR, downRow);
+    cv::vconcat(upRow, downRow, grid);
+
+    return grid;
+}
+
+enum class Mode
+{
+    CAMERA = 1,
+    CALIBRATION = 2
+};
+
+Mode mode = Mode::CAMERA;
+Mode prevMode = Mode::CAMERA;
+bool controlsOpen = false;
+
 int main()
 {
     cv::Mat frameBGR, frameHSV, frameLAB, frameLabHSV, homography, frameTop; // объект класса Mat для хранения текущего кадра изображения
@@ -123,7 +152,6 @@ int main()
     cv::setMouseCallback("View", onMouse);
 
     if (!initUDP()) return -2; // инициализируем UDP
-    initObjectControls();
     while (true) // бесконечно
     {
         video >> frameBGR; // получаем кадр из видеопотока
@@ -151,6 +179,27 @@ int main()
             if (cv::waitKey(1) == 27) break;
             continue;
         }
+
+        int key = cv::waitKey(1);
+        if (key == '1') mode = Mode::CAMERA;
+        if (key == '2') mode = Mode::CALIBRATION;
+        if (key == 27) break;
+
+        if (mode != prevMode)
+        {
+            if (controlsOpen)
+            {
+                cv::destroyWindow("Controls_Object");
+                controlsOpen = false;
+            }
+            if (mode == Mode::CALIBRATION)
+            {
+                initObjectControls();
+                controlsOpen = true;
+            }
+            prevMode = mode;
+        }
+
         cv::warpPerspective(frameBGR, frameTop, homography, cv::Size(FIELD_W, FIELD_H));
 
         cv::cvtColor(frameTop, frameHSV, cv::COLOR_BGR2HSV); // преобразуем полученный кадр в HSV
@@ -219,10 +268,61 @@ int main()
             sendData(&pack, sizeof(pack)); // отправляем число по UDP при помощи созданной функции
         }
 
-        imshow("OriginalVideo", frameTop); // отображаем кадр в окне с именем OriginalVideo
-        imshow("HSVVideo", frameHSV); // отображаем кадр в окне с именем HSVVideo
-        imshow("LABVideo", frameLAB); // отображаем кадр в окне с именем LabVideo
-        imshow("LabHSVVideo", frameLabHSV); // отображаем кадр в окне с именем LabHSVVideo
+        if (mode == Mode::CAMERA)
+        {
+            cv::putText(frameTop,
+                "Mode: 1 Camera, 2 Calibration",
+                cv::Point(15, 28),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 255),
+                2);
+            cv::imshow("Grid", frameTop);
+        }
+        else if (mode == Mode::CALIBRATION)
+        {
+            cv::Mat up_L, down_L, up_R, down_R;
+            toBGR(frameTop, up_L);
+            toBGR(frameHSV, down_L);
+            toBGR(frameLabHSV, up_R);
+            toBGR(frameLAB, down_R);
+
+            cv::putText(up_L,
+                "Original",
+                cv::Point(15, 28),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 255),
+                2);
+
+            cv::putText(down_L,
+                "HSV",
+                cv::Point(15, 28),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 255),
+                2);
+
+            cv::putText(up_R,
+                "Lab-HSV",
+                cv::Point(15, 28),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 255),
+                2);
+
+            cv::putText(down_R,
+                "Lab",
+                cv::Point(15, 28),
+                cv::FONT_HERSHEY_SIMPLEX,
+                0.8,
+                cv::Scalar(0, 255, 255),
+                2);
+
+            cv::Mat grid = makeGrid(up_L, down_L, up_R, down_R);
+
+            cv::imshow("Grid", grid);
+        }
         if (cv::waitKey(1) == 27) break; // ожидание 1 мс и проверка нажатия клавиши ESC
     }
     shutdownUDP(); // отключаем UDP
