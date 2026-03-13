@@ -211,6 +211,9 @@ int main()
             cv::Scalar(H.min, Smin, Vmin),
             cv::Scalar(H.max, 255, 255),
             frameHSV); // ищем только вхождения нужного цвета (преобразуем в бинарную маску) и переписываем в ту же переменную
+        cv::morphologyEx(frameHSV, frameHSV, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1, -1), 2);
+        cv::morphologyEx(frameHSV, frameHSV, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1, -1), 8);
+
 
         cv::cvtColor(frameTop, frameLAB, cv::COLOR_BGR2Lab);// преобразуем полученный кадр в Lab
         std::vector<cv::Mat> vectorFrameLab; // создаем массив типа Mat (вектор - динамический массив). Нужны библиотеки vector и iostream
@@ -219,8 +222,12 @@ int main()
         cv::inRange(vectorFrameLab[1], A.min, A.max, maskA); // проверяем вхождения в поток А
         cv::inRange(vectorFrameLab[2], B.min, B.max, maskB); // проверяем вхождения в поток И
         frameLAB = maskA | maskB; // объединяем результат в единую маску и записываем его
+        cv::morphologyEx(frameLAB, frameLAB, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1, -1), 2);
+        cv::morphologyEx(frameLAB, frameLAB, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1, -1), 8);
 
         frameLabHSV = frameHSV & frameLAB; // объединяем маски HSV и Lab в единый кадр
+        cv::morphologyEx(frameLabHSV, frameLabHSV, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1, -1), 2);
+        cv::morphologyEx(frameLabHSV, frameLabHSV, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1, -1), 8);
 
         std::vector<std::vector<cv::Point>> contour; // создаем вектор векторов координат для контуров объекта. Вектор векторов - это двухмерный массив.
         cv::findContours( //Ищем контуры объекта
